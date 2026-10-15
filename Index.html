@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Pro Mobile Tab Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/@coderline/alphatab@latest/dist/alphaTab.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #101014;
+      --panel-bg: #18181f;
+      --panel-sub: #22222c;
+      --accent: #ff9800;
+      --accent-dim: rgba(255, 152, 0, 0.2);
+      --text-main: #f5f5f7;
+      --text-muted: #9e9ea8;
+      --border: #2e2e3a;
+      --danger: #e53935;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    /* Collapsible Control Deck */
+    #control-deck {
+      background-color: var(--panel-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 20;
+      max-height: 62dvh;
+      overflow-y: auto;
+      transition: all 0.2s ease;
+    }
+    #control-deck.minimized {
+      display: none;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .row-between {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .song-info {
+      flex: 1;
+      min-width: 140px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .song-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .song-artist {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    button, select, .btn-label {
+      background-color: var(--panel-sub);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      user-select: none;
+    }
+    button:active, .btn-label:active {
+      transform: scale(0.97);
+    }
+    button.primary, .btn-label.primary {
+      background-color: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+    button.active {
+      background-color: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+    button.minimize-btn {
+      background-color: #2b2b38;
+      border-color: #45455a;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    button:disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    /* Sub-panels for Sound & Speed */
+    .sub-card {
+      background-color: var(--panel-sub);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .sub-card-header {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .highlight-val {
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 0.8rem;
+    }
+
+    select {
+      flex: 1;
+      min-width: 120px;
+      text-overflow: ellipsis;
+      background-color: var(--panel-bg);
+    }
+
+    /* Speed Controls */
+    .speed-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent);
+      height: 6px;
+      cursor: pointer;
+    }
+    .stepper-row {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+    .stepper-row button {
+      padding: 5px 2px;
+      font-size: 0.75rem;
+      background-color: var(--panel-bg);
+    }
+
+    /* Status Bar */
+    .status-bar {
+      font-size: 0.72rem;
+      color: var(--accent);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 2px;
+    }
+
+    /* Main Tab Viewport */
+    #viewport {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      background-color: #ffffff;
+      color: #000000;
+      position: relative;
+    }
+
+    /* Floating Minimized HUD */
+    #floating-hud {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(24, 24, 31, 0.94);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--accent);
+      border-radius: 999px;
+      padding: 6px 12px;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      z-index: 50;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+      white-space: nowrap;
+    }
+    #floating-hud.visible {
+      display: flex;
+    }
+    #floating-hud button {
+      border-radius: 999px;
+      padding: 6px 11px;
+      font-size: 0.78rem;
+    }
+    .hud-speed-badge {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--accent);
+      padding: 0 4px;
+    }
+
+    /* alphaTab Cursor & Selection Highlighting */
+    .at-cursor-bar {
+      background: rgba(255, 242, 0, 0.25);
+    }
+    .at-selection div {
+      background: rgba(64, 64, 255, 0.16);
+    }
+    .at-cursor-beat {
+      background: rgba(255, 152, 0, 0.9);
+      width: 3px;
+    }
+    .at-highlight * {
+      fill: #d32f2f;
+      stroke: #d32f2f;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Collapsible Control Deck -->
+  <header id="control-deck">
+    <!-- Row 1: Song Title, Open File, and Minimize Button -->
+    <div class="row-between">
+      <div class="song-info">
+        <div class="song-title" id="title">Country Hybrid Picking Study</div>
+        <div class="song-artist" id="artist">Demo Tab (Open any .gp file)</div>
+      </div>
+      <div class="row">
+        <label class="btn-label primary">
+          Open GP
+          <input type="file" id="file-input" accept=".gp,.gp3,.gp4,.gp5,.gpx,.xml,.cap" />
+        </label>
+        <button id="minimize-btn" class="minimize-btn" title="Hide panel for full-screen tab view">
+          Hide Panel ▲
+        </button>
+      </div>
+    </div>
+
+    <!-- Row 2: Main Transport, Count-In, Metronome, Loop, Auto-Hide -->
+    <div class="row">
+      <button id="play-pause" disabled>Play</button>
+      <button id="stop" disabled>Stop</button>
+      <button id="count-in" title="1-Bar Count-In Click Before Playing">Count-In</button>
+      <button id="metronome" title="Toggle Metronome Click">Metro</button>
+      <button id="loop" title="Loop Selected Measures or Full Song">Loop</button>
+      <button id="auto-hide-btn" title="Automatically minimize panel when Play is pressed">Auto-Hide</button>
+    </div>
+
+    <!-- Row 3: Track Selection, Guitar Sound Override, and Zoom -->
+    <div class="sub-card">
+      <div class="sub-card-header">
+        <span>Track & Guitar Tone</span>
+        <div class="row" style="gap:4px;">
+          <button id="zoom-out" style="padding:2px 8px; font-size:0.72rem;">Zoom -</button>
+          <span id="zoom-val" class="highlight-val">85%</span>
+          <button id="zoom-in" style="padding:2px 8px; font-size:0.72rem;">Zoom +</button>
+        </div>
+      </div>
+      <div class="row">
+        <select id="track-select" title="Select Active Track"></select>
+        <select id="tone-select" title="Override Guitar Sound (General MIDI Patch)">
+          <option value="default">Tone: File Default</option>
+          <option value="25">Acoustic Steel (Country/Folk)</option>
+          <option value="24">Acoustic Nylon (Classical/Warm)</option>
+          <option value="27">Electric Clean (Twang/Tele)</option>
+          <option value="26">Electric Jazz (Warm Neck)</option>
+          <option value="28">Electric Palm-Muted</option>
+          <option value="29">Overdriven Guitar (Tube Crunch)</option>
+          <option value="30">Distortion Guitar (High-Gain Lead)</option>
+          <option value="31">Guitar Harmonics</option>
+          <option value="105">5-String Banjo</option>
+          <option value="40">Country Fiddle / Violin</option>
+          <option value="22">Harmonica</option>
+          <option value="33">Electric Bass (Fingered)</option>
+          <option value="34">Electric Bass (Picked)</option>
+          <option value="36">Slap Bass</option>
+          <option value="0">Grand Piano</option>
+        </select>
+        <label class="btn-label" title="Load a custom .sf2 SoundFont file from your phone">
+          Custom .SF2
+          <input type="file" id="sf2-input" accept=".sf2,.sf3" />
+        </label>
+      </div>
+    </div>
+
+    <!-- Row 4: Fine-Grained Speed Controller -->
+    <div class="sub-card">
+      <div class="sub-card-header">
+        <span>Playback Speed Trainer</span>
+        <span id="speed-readout" class="highlight-val">100% (110 BPM)</span>
+      </div>
+      <div class="speed-slider-row">
+        <span style="font-size:0.7rem; color:var(--text-muted);">25%</span>
+        <input type="range" id="speed-slider" min="25" max="200" step="1" value="100" />
+        <span style="font-size:0.7rem; color:var(--text-muted);">200%</span>
+      </div>
+      <div class="stepper-row">
+        <button type="button" data-speed-step="-10">-10%</button>
+        <button type="button" data-speed-step="-5">-5%</button>
+        <button type="button" data-speed-step="-1">-1%</button>
+        <button type="button" id="speed-reset">100%</button>
+        <button type="button" data-speed-step="1">+1%</button>
+        <button type="button" data-speed-step="5">+5%</button>
+        <button type="button" data-speed-step="10">+10%</button>
+      </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span id="player-status">Initializing Audio Synth...</span>
+      <span id="time-display">00:00 / 00:00</span>
+    </div>
+  </header>
+
+  <!-- Main Tablature Viewport -->
+  <div id="viewport">
+    <div id="alphaTab"></div>
+  </div>
+
+  <!-- Minimized Floating HUD Pill for Full-Screen Mobile Use -->
+  <div id="floating-hud">
+    <button id="hud-play-pause" class="primary">Play</button>
+    <button id="hud-stop">Stop</button>
+    <button id="hud-slower" title="Decrease speed by 5%">-5%</button>
+    <span class="hud-speed-badge" id="hud-speed-text">100%</span>
+    <button id="hud-faster" title="Increase speed by 5%">+5%</button>
+    <button id="expand-btn" class="minimize-btn">Controls ▼</button>
+  </div>
+
+  <script>
+    const viewport = document.getElementById('viewport');
+    const container = document.getElementById('alphaTab');
+    const controlDeck = document.getElementById('control-deck');
+    const floatingHud = document.getElementById('floating-hud');
+
+    // Buttons & Inputs
+    const playBtn = document.getElementById('play-pause');
+    const stopBtn = document.getElementById('stop');
+    const hudPlayBtn = document.getElementById('hud-play-pause');
+    const hudStopBtn = document.getElementById('hud-stop');
+    const countInBtn = document.getElementById('count-in');
+    const metroBtn = document.getElementById('metronome');
+    const loopBtn = document.getElementById('loop');
+    const autoHideBtn = document.getElementById('auto-hide-btn');
+    const minimizeBtn = document.getElementById('minimize-btn');
+    const expandBtn = document.getElementById('expand-btn');
+
+    const trackSelect = document.getElementById('track-select');
+    const toneSelect = document.getElementById('tone-select');
+    const fileInput = document.getElementById('file-input');
+    const sf2Input = document.getElementById('sf2-input');
+
+    const speedSlider = document.getElementById('speed-slider');
+    const speedReadout = document.getElementById('speed-readout');
+    const speedResetBtn = document.getElementById('speed-reset');
+    const hudSpeedText = document.getElementById('hud-speed-text');
+    const hudSlowerBtn = document.getElementById('hud-slower');
+    const hudFasterBtn = document.getElementById('hud-faster');
+
+    const zoomOutBtn = document.getElementById('zoom-out');
+    const zoomInBtn = document.getElementById('zoom-in');
+    const zoomVal = document.getElementById('zoom-val');
+
+    const statusText = document.getElementById('player-status');
+    const timeDisplay = document.getElementById('time-display');
+
+    // State Variables
+    let currentSpeedPct = 100;
+    let baseTempo = 110;
+    let currentScale = 0.85;
+    let isCountInEnabled = false;
+    let isAutoHideEnabled = false;
+    let originalTrackPrograms = {};
+
+    // Initialize alphaTab
+    const api = new alphaTab.AlphaTabApi(container, {
+      core: {
+        fontDirectory: 'https://cdn.jsdelivr.net/npm/@coderline/alphatab@latest/dist/font/',
+        useWorkers: false
+      },
+      display: {
+        layoutMode: alphaTab.LayoutMode.Page,
+        scale: currentScale
+      },
+      player: {
+        enablePlayer: true,
+        enableCursor: true,
+        enableUserInteraction: true,
+        soundFont: 'https://cdn.jsdelivr.net/npm/@coderline/alphatab@latest/dist/soundfont/sonivox.sf2',
+        scrollElement: viewport
+      }
+    });
+
+    // Built-in Demo Tab
+    const demoTex = `
+      \\title "Country Hybrid & Banjo Roll Etude"
+      \\artist "Built-In Practice Tab"
+      \\tempo 110
+      \\instrument 27
+      .
+      :8 0.6 4.6 2.5 4.5 2.4 0.3 | 2.4 {b(0 4)} 0.3 2.4 0.4 3.5 0.6 |
+      :8 0.5 4.5 2.4 4.4 2.3 0.2 | 2.3 {b(0 4)} 0.2 2.3 0.3 3.4 0.5 |
+      :16 5.4 7.4 5.3 0.2 7.3 0.1 5.2 0.1 7.4 5.3 0.2 5.4 4.4 2.4 0.4 2.5 |
+      :4 2.4 2.3 :8 0.4 2.4 0.3 2.3 | :2 0.6 :4 r
+    `;
+    api.tex(demoTex);
+
+    // 1. Panel Minimize / Expand Logic
+    function minimizePanel() {
+      controlDeck.classList.add('minimized');
+      floatingHud.classList.add('visible');
+      api.render();
+    }
+
+    function expandPanel() {
+      controlDeck.classList.remove('minimized');
+      floatingHud.classList.remove('visible');
+      api.render();
+    }
+
+    minimizeBtn.addEventListener('click', minimizePanel);
+    expandBtn.addEventListener('click', expandPanel);
+
+    autoHideBtn.addEventListener('click', () => {
+      isAutoHideEnabled = !isAutoHideEnabled;
+      autoHideBtn.classList.toggle('active', isAutoHideEnabled);
+    });
+
+    // 2. Count-In, Metronome, and Loop Controls
+    countInBtn.addEventListener('click', () => {
+      isCountInEnabled = !isCountInEnabled;
+      api.countInVolume = isCountInEnabled ? 1 : 0;
+      countInBtn.classList.toggle('active', isCountInEnabled);
+    });
+
+    metroBtn.addEventListener('click', () => {
+      const isMetroOn = api.metronomeVolume > 0;
+      api.metronomeVolume = isMetroOn ? 0 : 1;
+      metroBtn.classList.toggle('active', !isMetroOn);
+    });
+
+    loopBtn.addEventListener('click', () => {
+      api.isLooping = !api.isLooping;
+      loopBtn.classList.toggle('active', api.isLooping);
+    });
+
+    // 3. Play / Pause / Stop
+    function triggerPlayPause() {
+      if (isAutoHideEnabled && api.playerState !== 1) {
+        minimizePanel();
+      }
+      api.playPause();
+    }
+
+    playBtn.addEventListener('click', triggerPlayPause);
+    hudPlayBtn.addEventListener('click', triggerPlayPause);
+
+    stopBtn.addEventListener('click', () => api.stop());
+    hudStopBtn.addEventListener('click', () => api.stop());
+
+    api.playerStateChanged.on((e) => {
+      const isPlaying = (e.state === 1);
+      playBtn.innerText = isPlaying ? 'Pause' : 'Play';
+      hudPlayBtn.innerText = isPlaying ? 'Pause' : 'Play';
+      playBtn.classList.toggle('active', isPlaying);
+    });
+
+    // 4. Precision Speed Control (25% to 200%)
+    function setPlaybackSpeed(newPct) {
+      currentSpeedPct = Math.max(25, Math.min(200, Math.round(newPct)));
+      speedSlider.value = currentSpeedPct;
+      api.playbackSpeed = currentSpeedPct / 100;
+
+      const effectiveBpm = Math.round(baseTempo * (currentSpeedPct / 100));
+      speedReadout.innerText = `${currentSpeedPct}% (${effectiveBpm} BPM)`;
+      hudSpeedText.innerText = `${currentSpeedPct}%`;
+    }
+
+    speedSlider.addEventListener('input', (e) => {
+      setPlaybackSpeed(parseInt(e.target.value, 10));
+    });
+
+    speedResetBtn.addEventListener('click', () => setPlaybackSpeed(100));
+
+    document.querySelectorAll('[data-speed-step]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const delta = parseInt(btn.getAttribute('data-speed-step'), 10);
+        setPlaybackSpeed(currentSpeedPct + delta);
+      });
+    });
+
+    hudSlowerBtn.addEventListener('click', () => setPlaybackSpeed(currentSpeedPct - 5));
+    hudFasterBtn.addEventListener('click', () => setPlaybackSpeed(currentSpeedPct + 5));
+
+    // 5. Guitar Sound / MIDI Program Override & Custom SoundFont Loader
+    function applyToneOverride() {
+      if (!api.score) return;
+      const trackIdx = parseInt(trackSelect.value, 10) || 0;
+      const track = api.score.tracks[trackIdx];
+      if (!track || !track.playbackInfo) return;
+
+      // Skip drum/percussion channel (channel 9)
+      if (track.playbackInfo.primaryChannel === 9) {
+        statusText.innerText = 'Drum track selected (cannot apply guitar patch).';
+        return;
+      }
+
+      const selectedTone = toneSelect.value;
+      const targetProgram = (selectedTone === 'default')
+        ? (originalTrackPrograms[trackIdx] ?? 25)
+        : parseInt(selectedTone, 10);
+
+      track.playbackInfo.program = targetProgram;
+
+      // Also update any embedded beat-level instrument automations so GP files respect the chosen sound
+      if (track.staves) {
+        track.staves.forEach((staff) => {
+          if (!staff.bars) return;
+          staff.bars.forEach((bar) => {
+            if (!bar.voices) return;
+            bar.voices.forEach((voice) => {
+              if (!voice.beats) return;
+              voice.beats.forEach((beat) => {
+                if (!beat.automations) return;
+                beat.automations.forEach((auto) => {
+                  if (auto.type === 1 || (alphaTab.model?.AutomationType && auto.type === alphaTab.model.AutomationType.Instrument)) {
+                    auto.value = targetProgram;
+                  }
+                });
+              });
+            });
+          });
+        });
+      }
+
+      // Re-render track to rebuild MIDI stream with new guitar tone
+      api.renderTracks([track]);
+      const toneLabel = toneSelect.options[toneSelect.selectedIndex].text;
+      statusText.innerText = `Applied ${toneLabel}`;
+    }
+
+    toneSelect.addEventListener('change', applyToneOverride);
+
+    // Custom .SF2 SoundFont upload from phone storage
+    sf2Input.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      statusText.innerText = `Loading custom SoundFont (${file.name})...`;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        api.loadSoundFont(new Uint8Array(event.target.result), false);
+        statusText.innerText = `Custom SoundFont loaded: ${file.name}`;
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    // 6. Score Loading & Track Switching
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      statusText.innerText = 'Reading Guitar Pro file...';
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        api.load(new Uint8Array(event.target.result));
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    api.scoreLoaded.on((score) => {
+      document.getElementById('title').innerText = score.title || 'Untitled Score';
+      document.getElementById('artist').innerText = score.artist || 'Unknown Artist';
+      baseTempo = score.tempo || 120;
+      setPlaybackSpeed(currentSpeedPct);
+
+      originalTrackPrograms = {};
+      trackSelect.innerHTML = '';
+
+      score.tracks.forEach((track, index) => {
+        if (track.playbackInfo) {
+          originalTrackPrograms[index] = track.playbackInfo.program;
+        }
+        const opt = document.createElement('option');
+        opt.value = index;
+        opt.innerText = `${index + 1}. ${track.name}`;
+        trackSelect.appendChild(opt);
+      });
+
+      toneSelect.value = 'default';
+    });
+
+    trackSelect.addEventListener('change', (e) => {
+      const trackIndex = parseInt(e.target.value, 10);
+      if (api.score && api.score.tracks[trackIndex]) {
+        toneSelect.value = 'default';
+        api.renderTracks([api.score.tracks[trackIndex]]);
+      }
+    });
+
+    // 7. Mobile Zoom Controls
+    function updateZoom(newScale) {
+      currentScale = Math.max(0.5, Math.min(1.4, Math.round(newScale * 100) / 100));
+      zoomVal.innerText = `${Math.round(currentScale * 100)}%`;
+      api.settings.display.scale = currentScale;
+      api.updateSettings();
+      api.render();
+    }
+
+    zoomOutBtn.addEventListener('click', () => updateZoom(currentScale - 0.1));
+    zoomInBtn.addEventListener('click', () => updateZoom(currentScale + 0.1));
+
+    // 8. Synth Status & Time Display
+    api.soundFontLoad.on((e) => {
+      const pct = Math.floor((e.loaded / e.total) * 100);
+      statusText.innerText = `Loading Audio Bank: ${pct}%`;
+    });
+
+    api.playerReady.on(() => {
+      statusText.innerText = 'Ready (Tap measure to seek, drag across measures to loop)';
+      playBtn.disabled = false;
+      stopBtn.disabled = false;
+    });
+
+    function formatTime(ms) {
+      const totalSeconds = Math.floor(ms / 1000);
+      const mins = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+      const secs = String(totalSeconds % 60).padStart(2, '0');
+      return `${mins}:${secs}`;
+    }
+
+    let lastTimeUpdate = 0;
+    api.playerPositionChanged.on((e) => {
+      const now = Date.now();
+      if (now - lastTimeUpdate > 400) {
+        timeDisplay.innerText = `${formatTime(e.currentTime)} / ${formatTime(e.endTime)}`;
+        lastTimeUpdate = now;
+      }
+    });
+
+    api.error.on((err) => {
+      statusText.innerText = 'Error loading file. Verify it is a valid Guitar Pro file.';
+      console.error(err);
+    });
+  </script>
+</body>
+</html>
